@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/json-iterator/go"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type Buffer struct {
 	bufferDir  string
@@ -26,20 +22,12 @@ type Buffer struct {
 func NewBuffer(bufferDir string) *Buffer {
 	return &Buffer{
 		bufferDir:  bufferDir,
-		bufferPath: filepath.Join(bufferDir, "current.jsonl"),
+		bufferPath: filepath.Join(bufferDir, "current.ltsv"),
 		mutex:      sync.RWMutex{},
 	}
 }
 
-type line struct {
-	Timestamp  time.Time         `json:"timestamp"`
-	MetricName string            `json:"metricName"`
-	IsNaN      bool              `json:"isNaN"`
-	Value      float64           `json:"value"`
-	Labels     map[string]string `json:"labels"`
-}
-
-func (b *Buffer) Put(t time.Time, name string, value float64, labels map[string]string) error {
+func (b *Buffer) Put(timestampMilli int64, value float64, labels map[string]string) error {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -61,22 +49,13 @@ func (b *Buffer) Put(t time.Time, name string, value float64, labels map[string]
 		b.writer = f
 	}
 
-	e := json.NewEncoder(b.writer)
-	l := line{
-		Timestamp:  t,
-		MetricName: name,
-		IsNaN:      false,
-		Value:      value,
-		Labels:     labels,
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "timestamp:%d\tvalue:%f", timestampMilli, value)
+	for k, v := range labels {
+		k = strings.Replace(k, ":", "-", -1)
+		fmt.Fprintf(&builder, "\t%s:%s", k, v)
 	}
-	if math.IsNaN(l.Value) {
-		l.Value = 0
-		l.IsNaN = true
-	}
-	err := e.Encode(l)
-	if err != nil {
-		return err
-	}
+	fmt.Fprintln(b.writer, builder.String())
 
 	return nil
 }
@@ -95,7 +74,7 @@ func (b *Buffer) Rotate() (string, error) {
 	}
 	b.writer = nil
 
-	path := filepath.Join(b.bufferDir, fmt.Sprintf("%d.done.jsonl", time.Now().UnixNano()))
+	path := filepath.Join(b.bufferDir, fmt.Sprintf("%d.done.ltsv", time.Now().UnixNano()))
 	err = os.Rename(b.bufferPath, path)
 	if err != nil {
 		return "", err

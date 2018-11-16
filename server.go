@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"sync/atomic"
-	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -71,18 +70,12 @@ func (s *Server) writeTimeseries(tss []*prompb.TimeSeries) error {
 
 	for _, ts := range tss {
 		for _, ss := range ts.Samples {
-			var name string
 			labels := map[string]string{}
 			for _, l := range ts.Labels {
-				if l.Name == "__name__" {
-					name = l.Value
-					continue
-				}
 				labels[l.Name] = l.Value
 			}
 
-			t := time.Unix(0, ss.Timestamp*1000000)
-			err := s.buffer.Put(t, name, ss.Value, labels)
+			err := s.buffer.Put(ss.Timestamp, ss.Value, labels)
 			if err != nil {
 				return err
 			}
