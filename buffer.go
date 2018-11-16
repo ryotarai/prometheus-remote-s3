@@ -27,27 +27,41 @@ func NewBuffer(bufferDir string) *Buffer {
 	}
 }
 
-func (b *Buffer) Put(timestampMilli int64, value float64, labels map[string]string) error {
-	b.mutex.RLock()
-	defer b.mutex.RUnlock()
+func (b *Buffer) openFile() error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
 
-	if b.writer == nil {
-		_, err := os.Stat(b.bufferDir)
-		if os.IsNotExist(err) {
-			log.Printf("Creating a buffer directory because it does not exist")
-			err := os.Mkdir(b.bufferDir, 0700)
-			if err != nil {
-				return err
-			}
-		}
+	if b.writer != nil {
+		return nil
+	}
 
-		log.Printf("Opening %s", b.bufferPath)
-		f, err := os.OpenFile(b.bufferPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	_, err := os.Stat(b.bufferDir)
+	if os.IsNotExist(err) {
+		log.Printf("Creating a buffer directory because it does not exist")
+		err := os.Mkdir(b.bufferDir, 0700)
 		if err != nil {
 			return err
 		}
-		b.writer = f
 	}
+
+	log.Printf("Opening %s", b.bufferPath)
+	f, err := os.OpenFile(b.bufferPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	b.writer = f
+
+	return nil
+}
+
+func (b *Buffer) Put(timestampMilli int64, value float64, labels map[string]string) error {
+	err := b.openFile()
+	if err != nil {
+		return err
+	}
+
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "timestamp:%d\tvalue:%f", timestampMilli, value)
