@@ -20,14 +20,14 @@ type Buffer struct {
 	bufferDir  string
 	bufferPath string
 	writer     io.WriteCloser
-	mutex      sync.Mutex
+	mutex      sync.RWMutex
 }
 
 func NewBuffer(bufferDir string) *Buffer {
 	return &Buffer{
 		bufferDir:  bufferDir,
 		bufferPath: filepath.Join(bufferDir, "current.jsonl"),
-		mutex:      sync.Mutex{},
+		mutex:      sync.RWMutex{},
 	}
 }
 
@@ -40,8 +40,8 @@ type line struct {
 }
 
 func (b *Buffer) Put(t time.Time, name string, value float64, labels map[string]string) error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
 
 	if b.writer == nil {
 		_, err := os.Stat(b.bufferDir)
