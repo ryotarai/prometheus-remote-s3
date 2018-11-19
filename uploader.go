@@ -67,6 +67,11 @@ func (u *Uploader) RunLoop() {
 		}
 
 		log.Printf("Uploading succeeded")
+
+		err = u.deleteFile(compressedPath)
+		if err != nil {
+			log.Printf("Deleting %s failed: %s", compressedPath, err)
+		}
 	}
 }
 
@@ -89,7 +94,7 @@ func (u *Uploader) uploadFile(path string) error {
 	}
 	defer f.Close()
 
-	key := fmt.Sprintf("%s%s.gz", u.keyPrefix, time.Now().UTC().Format("2006/01/02/20060102_150405"))
+	key := fmt.Sprintf("%s%s.ltsv.gz", u.keyPrefix, time.Now().UTC().Format("2006/01/02/20060102_150405"))
 	log.Printf("PutObject %s", key)
 	_, err = u.s3.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(u.bucket),
@@ -101,4 +106,9 @@ func (u *Uploader) uploadFile(path string) error {
 	}
 
 	return nil
+}
+
+func (u *Uploader) deleteFile(path string) error {
+	log.Printf("Deleting %s", path)
+	return os.Remove(path)
 }

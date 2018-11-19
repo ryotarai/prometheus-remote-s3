@@ -27,7 +27,7 @@ func main() {
 
 	uploadInterval, err := time.ParseDuration(*uploadIntervalStr)
 	if err != nil {
-		log.Fatal("Upload interval '%s' is not valid", *uploadIntervalStr)
+		log.Fatalf("Upload interval '%s' is not valid", *uploadIntervalStr)
 	}
 
 	if *pprof != "" {
