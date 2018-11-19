@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -47,8 +51,30 @@ func main() {
 	go uploader.RunLoop()
 
 	log.Printf("Listening %s", *listen)
-	err = http.ListenAndServe(*listen, s)
-	if err != nil {
-		log.Fatal(err)
+	srv := &http.Server{
+		Addr:    *listen,
+		Handler: s,
 	}
+
+	go func() {
+		err = srv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	termCh := make(chan os.Signal)
+	signal.Notify(termCh, syscall.SIGTERM)
+	<-termCh
+	log.Printf("Shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
+	err = srv.Shutdown(ctx)
+	if err != nil {
+		log.Printf("Error shutting down HTTP server: %s", err)
+	}
+
+	uploader.Run()
+	log.Printf("Successfully shutted down")
 }

@@ -38,40 +38,43 @@ func (u *Uploader) RunLoop() {
 	ticker := time.NewTicker(u.interval)
 	for {
 		<-ticker.C
+		u.Run()
+	}
+}
 
-		path, err := u.buffer.Rotate()
-		if err != nil {
-			log.Printf("Rotating a file failed: %s", err)
-			continue
+func (u *Uploader) Run() {
+	path, err := u.buffer.Rotate()
+	if err != nil {
+		log.Printf("Rotating a file failed: %s", err)
+		return
+	}
+
+	var compressedPath string
+	for {
+		compressedPath, err = u.compressFile(path)
+		if err == nil {
+			break
 		}
+		log.Printf("Compressing a file failed: %s", err)
+		log.Printf("Retrying in 10 sec")
+		time.Sleep(time.Second * 10)
+	}
 
-		var compressedPath string
-		for {
-			compressedPath, err = u.compressFile(path)
-			if err == nil {
-				break
-			}
-			log.Printf("Compressing a file failed: %s", err)
-			log.Printf("Retrying in 10 sec")
-			time.Sleep(time.Second * 10)
+	for {
+		err = u.uploadFile(compressedPath)
+		if err == nil {
+			break
 		}
+		log.Printf("Uploading a file failed: %s", err)
+		log.Printf("Retrying in 10 sec")
+		time.Sleep(time.Second * 10)
+	}
 
-		for {
-			err = u.uploadFile(compressedPath)
-			if err == nil {
-				break
-			}
-			log.Printf("Uploading a file failed: %s", err)
-			log.Printf("Retrying in 10 sec")
-			time.Sleep(time.Second * 10)
-		}
+	log.Printf("Uploading succeeded")
 
-		log.Printf("Uploading succeeded")
-
-		err = u.deleteFile(compressedPath)
-		if err != nil {
-			log.Printf("Deleting %s failed: %s", compressedPath, err)
-		}
+	err = u.deleteFile(compressedPath)
+	if err != nil {
+		log.Printf("Deleting %s failed: %s", compressedPath, err)
 	}
 }
 
